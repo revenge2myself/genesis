@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test as base, expect, type Page } from '@playwright/test';
+import { courses } from '../src/data/courses';
 
 const test = base.extend<{ runtimeGuard: void }>({
   runtimeGuard: [async ({ page }, use) => {
@@ -49,20 +50,20 @@ test('无法读取的旧学习记录保留原始副本，不会被静默覆盖',
 
 test('课程筛选、搜索、空状态与双引擎术语检索', async ({ page }) => {
   await navigate(page, '项目课程');
-  await expect(page.locator('.course-card')).toHaveCount(12);
+  await expect(page.locator('.course-card')).toHaveCount(17);
   const filters = page.getByRole('group', { name: '课程阶段' });
   await filters.getByRole('button', { name: '商业实战', exact: true }).click();
-  await expect(page.locator('.course-card')).toHaveCount(3);
-  await expect(page.locator('.course-card .cover-stage')).toHaveText(['商业实战', '商业实战', '商业实战']);
+  await expect(page.locator('.course-card')).toHaveCount(4);
+  await expect(page.locator('.course-card .cover-stage')).toHaveText(['商业实战', '商业实战', '商业实战', '阶段验收']);
   await page.getByRole('textbox', { name: '搜索课程' }).fill('不存在的课程 query_742');
   await expect(page.getByRole('heading', { name: '没有找到匹配的项目' })).toBeVisible();
   await page.getByRole('button', { name: '重置筛选', exact: true }).click();
-  await expect(page.locator('.course-card')).toHaveCount(12);
+  await expect(page.locator('.course-card')).toHaveCount(17);
   const firstTitle = (await page.locator('.course-card h3').first().textContent())!;
   await page.getByRole('textbox', { name: '搜索课程' }).fill(firstTitle);
   await expect(page.locator('.course-card')).toHaveCount(1);
   await page.getByRole('button', { name: '清除搜索', exact: true }).click();
-  await expect(page.locator('.course-card')).toHaveCount(12);
+  await expect(page.locator('.course-card')).toHaveCount(17);
   await navigate(page, '双引擎对照');
   await page.getByRole('textbox', { name: '搜索双引擎术语' }).fill('Prefab');
   await expect(page.locator('.comparison-row').first()).toContainText('Prefab');
@@ -163,16 +164,16 @@ test('导出包含学习记录，导入需要确认且恢复原记录', async ({
   await navigate(page, '学习记录');
   await page.locator('input[type="file"]').setInputFiles({ name: 'learning-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(data)) });
   await expect(page.getByRole('dialog', { name: '导入学习备份' })).toBeVisible();
-  await expect(page.locator('.record-stats')).toContainText('0 / 360');
+  await expect(page.locator('.record-stats')).toContainText('0 / 510');
   await page.getByRole('button', { name: '取消', exact: true }).click();
-  await expect(page.locator('.record-stats')).toContainText('0 / 360');
+  await expect(page.locator('.record-stats')).toContainText('0 / 510');
   await page.locator('input[type="file"]').setInputFiles({ name: 'learning-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(data)) });
   await page.getByRole('button', { name: '确认导入', exact: true }).click();
-  await expect(page.locator('.record-stats')).toContainText('1 / 360');
+  await expect(page.locator('.record-stats')).toContainText('1 / 510');
   await expect(page.locator('.note-list')).toContainText('导出与导入需要保留这条笔记');
   await page.reload();
   await navigate(page, '学习记录');
-  await expect(page.locator('.record-stats')).toContainText('1 / 360');
+  await expect(page.locator('.record-stats')).toContainText('1 / 510');
   await expect(page.locator('.note-list')).toContainText('导出与导入需要保留这条笔记');
 });
 
@@ -184,7 +185,7 @@ test('格式错误的备份不会覆盖已有记录', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles({ name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from('{"notes":{}}') });
   await expect(page.getByRole('status')).toContainText('缺少学习进度或笔记');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('.record-stats')).toContainText('1 / 360');
+  await expect(page.locator('.record-stats')).toContainText('1 / 510');
 });
 
 test('专注时间按实际经过时间累计，暂停后不继续增加', async ({ page }) => {
@@ -221,6 +222,96 @@ test('课堂键盘导航、焦点循环与 Escape 关闭', async ({ page }) => {
   await expect(opener).toBeFocused();
 });
 
+test('AI 美术工坊生成可复制提示词，并导出正确尺寸的透明 PNG 与素材清单', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await navigate(page, 'AI 美术工坊');
+  await page.getByRole('textbox', { name: '素材主体', exact: true }).fill('戴黄色围巾的小机器人');
+  await page.getByRole('combobox', { name: '生成尺寸', exact: true }).selectOption('1024');
+  const prompt = page.getByRole('textbox', { name: '生成的美术提示词', exact: true });
+  await expect(prompt).toHaveValue(/戴黄色围巾的小机器人/);
+  await expect(prompt).toHaveValue(/1024 × 1024/);
+  await page.getByRole('button', { name: '复制提示词', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(await prompt.inputValue());
+  await page.locator('.art-recipes button').filter({ hasText: '背景：给玩法留空间' }).click();
+  await expect(page.getByRole('combobox', { name: '素材类型', exact: true })).toHaveValue('背景');
+  await expect(prompt).toHaveValue(/背景图可以不透明/);
+  await page.getByRole('combobox', { name: '素材类型', exact: true }).selectOption('界面');
+  await expect(prompt).toHaveValue(/九宫格切片/);
+
+  await page.getByRole('combobox', { name: 'PNG 导出宽度', exact: true }).selectOption('512');
+  for (const asset of [{ name: '薄荷小队员', file: 'player-512x512.png', width: 512, height: 512 }, { name: '苔绿浮岛', file: 'platform-512x128.png', width: 512, height: 128 }]) {
+    const event = page.waitForEvent('download');
+    await page.getByRole('button', { name: `下载${asset.name} PNG`, exact: true }).click();
+    const download = await event;
+    expect(download.suggestedFilename()).toBe(asset.file);
+    const png = await readFile((await download.path())!);
+    expect([...png.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(png.toString('ascii', 12, 16)).toBe('IHDR');
+    expect(png.readUInt32BE(16)).toBe(asset.width);
+    expect(png.readUInt32BE(20)).toBe(asset.height);
+    expect(png[25], '导出的 PNG 包含透明度通道').toBe(6);
+    await expect(page.locator('.art-status')).toContainText(`${asset.width} × ${asset.height}`);
+  }
+  const manifestEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载素材清单 CSV', exact: true }).click();
+  const manifest = await manifestEvent;
+  const csv = await readFile((await manifest.path())!, 'utf8');
+  expect(csv).toContain('filename,width,height,format,source,license,pivot');
+  expect(csv).toContain('player-512x512.png,512,512,PNG RGBA');
+  expect(csv).toContain('platform-512x128.png,512,128,PNG RGBA');
+  expect(csv).toContain('可使用修改并用于商业游戏无需署名');
+  expect(csv.trim().split('\r\n')).toHaveLength(6);
+});
+
+test('阶段验收与学习任务独立，80 分加全部必过条件达标并在刷新后保留', async ({ page }) => {
+  const course = courses.find(item => item.id === 'checkpointarcade')!;
+  await navigate(page, '项目课程');
+  await page.getByRole('button', { name: `学习项目 ${course.title}`, exact: true }).click();
+  let dialog = page.getByRole('dialog');
+  await expect(dialog.locator('.lesson-checkpoint-preview')).toContainText('待验收');
+  await dialog.getByRole('button', { name: '打开阶段验收', exact: true }).click();
+  const rubric = dialog.locator('.lesson-checkpoint-checklist').first().getByRole('checkbox');
+  const gates = dialog.locator('.lesson-checkpoint-gates').getByRole('checkbox');
+  for (let index = 0; index < await rubric.count(); index++) await rubric.nth(index).check();
+  await expect(dialog.locator('.lesson-checkpoint-score strong')).toHaveText('100 / 100');
+  await expect(dialog.locator('.lesson-checkpoint-assessment .lesson-checkpoint-state')).toHaveText('需要补做');
+  for (let index = 0; index < await gates.count() - 1; index++) await gates.nth(index).check();
+  await expect(dialog.locator('.lesson-checkpoint-result')).toContainText('需要补做');
+  await gates.last().check();
+  await expect(dialog.locator('.lesson-checkpoint-result')).toContainText('自评达标，仍需按证据复核');
+  await rubric.last().uncheck();
+  await expect(dialog.locator('.lesson-checkpoint-score strong')).toHaveText('80 / 100');
+  await expect(dialog.locator('.lesson-checkpoint-assessment .lesson-checkpoint-state')).toHaveText('自评达标');
+  await dialog.getByRole('tab', { name: '今日实作', exact: true }).click();
+  await expect(dialog.locator('.lesson-completion')).toHaveText('0 / 5 已完成');
+  await dialog.getByRole('button', { name: '关闭实作课堂', exact: true }).click();
+  await page.reload();
+  await navigate(page, '项目课程');
+  const card = page.getByRole('button', { name: `学习项目 ${course.title}`, exact: true });
+  await expect(card).toContainText('自评达标');
+  await card.click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '打开阶段验收', exact: true }).click();
+  await expect(dialog.locator('.lesson-checkpoint-score strong')).toHaveText('80 / 100');
+  const restoredGates = dialog.locator('.lesson-checkpoint-gates').getByRole('checkbox');
+  for (let index = 0; index < await restoredGates.count(); index++) await expect(restoredGates.nth(index)).toBeChecked();
+  await restoredGates.first().uncheck();
+  await expect(dialog.locator('.lesson-checkpoint-result')).toContainText('需要补做');
+});
+
+test('课程重排后 AI 课程和商业入口仍打开对应项目', async ({ page }) => {
+  await navigate(page, 'AI 美术工坊');
+  await page.getByRole('button', { name: '开始 AI 美术实作课', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toHaveText(courses.find(course => course.id === 'aiart')!.title);
+  await page.getByRole('button', { name: '关闭实作课堂', exact: true }).click();
+  await navigate(page, '变现与发行');
+  for (const [index, id] of ['ads', 'steam', 'switch'].entries()) {
+    await page.locator('.business-card').nth(index).getByRole('button', { name: '进入实战章节', exact: true }).click();
+    await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toHaveText(courses.find(course => course.id === id)!.title);
+    await page.getByRole('button', { name: '关闭实作课堂', exact: true }).click();
+  }
+});
+
 test('手机页面、课程弹层和所有主页面均无横向溢出', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const assertNoOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -236,8 +327,17 @@ test('手机页面、课程弹层和所有主页面均无横向溢出', async ({
   await dialog.getByRole('navigation', { name: '选择学习日' }).getByRole('button').last().click();
   await expect(dialog.getByRole('button', { name: '返回学习路径', exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: '关闭实作课堂' }).click();
-  for (const section of ['项目课程', '今日计划', '双引擎对照', '变现与发行', '学习记录']) {
+  for (const section of ['项目课程', '今日计划', 'AI 美术工坊', '双引擎对照', '变现与发行', '学习记录']) {
     await navigate(page, section);
     await assertNoOverflow();
   }
+  await navigate(page, '项目课程');
+  await page.getByRole('group', { name: '课程类型' }).getByRole('button', { name: '阶段验收', exact: true }).click();
+  await expect(page.locator('.course-card')).toHaveCount(4);
+  await page.locator('.course-card').first().click();
+  await assertNoOverflow();
+  await page.getByRole('dialog').getByRole('button', { name: '打开阶段验收', exact: true }).click();
+  await assertNoOverflow();
+  await expect(page.locator('.lesson-checkpoint-assessment')).toBeVisible();
+  await expect(page.locator('.lesson-dialog')).toHaveJSProperty('scrollWidth', 390);
 });

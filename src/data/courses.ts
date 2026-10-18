@@ -1,11 +1,14 @@
 import type { Course, LessonDay } from '../types';
+import { aiArtCourse } from './aiArtCourse.ts';
+import { checkpointArcade, checkpointStrategy } from './checkpointFoundations.ts';
+import { checkpointSurvival, checkpointRelease } from './checkpointAdvanced.ts';
 
 const day = (
   title: string, goal: string, concept: string, steps: string[],
   cocos: string, unity: string, acceptance: string[], reflection: string,
 ): LessonDay => ({ title, goal, concept, steps, cocos, unity, acceptance, reflection });
 
-export const courses: Course[] = [
+const coreCourses: Course[] = [
   {
     id: 'pong', number: 1, title: '像素弹球', subtitle: '从第一行代码，到第一个游戏循环',
     description: '用球、挡板和两条边界制作双人弹球。在两个引擎里亲手走完场景搭建、输入、碰撞、计分和发布，建立可迁移的开发方法。',
@@ -1035,9 +1038,9 @@ public class DockRule : MonoBehaviour {
         '桌面端先通过暂停与存档测试；Switch 模块、SDK 与开发机只能在合法取得授权后配置。',
         ['四个阶段的恢复都不会重复收获或无提示失败，存档可以重新读取。', '已获权限、未获权限与未验证项目有清晰记录，没有使用虚构 SDK 或设备。'],
         '哪一种恢复行为属于你的玩法决定，哪一种必须服从平台要求？'),
-      day('交付毕业作品与独立开发计划', '完成钓鱼小游戏、移植准备包和下一款商业作品计划。',
+      day('交付移植准备作品与独立开发计划', '完成钓鱼小游戏、移植准备包和下一款商业作品计划。',
         '独立开发（Independent Development）包括制作、验证、发行和持续运营。完成课程应证明你能交付有边界的作品，而不是保证销量；选择自己能承担的范围，并用阶段门槛控制投入。',
-        ['导出两个本地可玩版本，录制只使用手柄完成三分钟挑战的视频。', '整理输入、存档、性能、授权、素材和平台验证的准备包，未完成项列出下一步及前提。', '从十二个项目中选一款扩展为商业作品，制定四周可验证里程碑与工时预算。', '分别写出 Cocos 广告路线与 Unity Steam / Switch 路线的发布条件、成本、测试样本和停止条件。'],
+        ['导出两个本地可玩版本，录制只使用手柄完成三分钟挑战的视频。', '整理输入、存档、性能、授权、素材和平台验证的准备包，未完成项列出下一步及前提。', '从全部项目中选一款扩展为商业作品，制定四周可验证里程碑与工时预算。', '分别写出 Cocos 广告路线与 Unity Steam / Switch 路线的发布条件、成本、测试样本和停止条件。'],
         '交付玩法同构版本与技术对照，明确它并非未经授权的 Switch 构建。',
         '交付桌面验证版本与主机移植准备包；只有完成授权开发、真实设备测试和官方提交流程后，才能称为平台发布候选。',
         ['钓鱼小游戏完整可玩，资料准确标记本地验证与平台待验证范围。', '毕业计划包含明确产品范围、时间成本、商业假设和发行门槛，不承诺必然盈利。'],
@@ -1080,3 +1083,18 @@ public class FishingTension : MonoBehaviour {
     ],
   },
 ];
+
+
+function core(id: string): Course {
+  const course = coreCourses.find(item => item.id === id);
+  if (!course) throw new Error(`Missing curriculum project: ${id}`);
+  return course;
+}
+
+// Stable IDs retain existing notes and progress even when chapter numbers change.
+export const courses: Course[] = [
+  core('pong'), aiArtCourse, core('bird'), core('breakout'), checkpointArcade,
+  core('runner'), core('puzzle'), core('tower'), checkpointStrategy,
+  core('farm'), core('dungeon'), core('survival'), checkpointSurvival,
+  core('ads'), core('steam'), core('switch'), checkpointRelease,
+].map((course, index) => ({ ...course, number: index + 1 }));

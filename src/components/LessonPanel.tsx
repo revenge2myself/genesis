@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, ChevronRight, Clock3, Code2, Copy, ExternalLink, Flag, Layers3, Lightbulb, ListChecks, NotebookPen, Play, Sparkles, X } from 'lucide-react';
 import { schedule } from '../types';
 import type { Course, Progress } from '../types';
+import { courses } from '../data/courses';
+import { assessCheckpoint } from '../progress';
 import './lesson.css';
 
 interface LessonPanelProps {
@@ -14,6 +16,7 @@ interface LessonPanelProps {
   onNote: (key: string, value: string) => void;
   onArtifact: (key: string, value: string) => void;
   onQuiz: (key: string, answer: number) => void;
+  onCheckpointCheck: (key: string) => void;
   onClose: () => void;
 }
 
@@ -25,7 +28,7 @@ const tabs = [
 ] as const;
 type Tab = typeof tabs[number]['id'];
 
-export default function LessonPanel({ course, day, onDayChange, progress, onToggleTask, onNote, onArtifact, onQuiz, onClose }: LessonPanelProps) {
+export default function LessonPanel({ course, day, onDayChange, progress, onToggleTask, onNote, onArtifact, onQuiz, onCheckpointCheck, onClose }: LessonPanelProps) {
   const [tab, setTab] = useState<Tab>('practice');
   const [engine, setEngine] = useState<'cocos' | 'unity'>('cocos');
   const [copyState, setCopyState] = useState('复制代码');
@@ -38,6 +41,10 @@ export default function LessonPanel({ course, day, onDayChange, progress, onTogg
   const dayKey = `${course.id}:${currentDay}`;
   const completedTasks = schedule.filter(item => progress.completed[`${dayKey}:${item.id}`]).length;
   const completedMinutes = schedule.reduce((total, item) => total + (progress.completed[`${dayKey}:${item.id}`] ? item.minutes : 0), 0);
+  const checkpoint = course.checkpoint;
+  const assessment = assessCheckpoint(course, progress.checkpointChecks);
+  const assessmentStatus = assessment.passed ? '自评达标' : assessment.started ? '需要补做' : '待验收';
+  const prerequisiteTitles = (course.prerequisites ?? []).map(id => courses.find(item => item.id === id)?.title ?? id);
 
   useEffect(() => { closeCallback.current = onClose; }, [onClose]);
   useEffect(() => {
@@ -103,7 +110,7 @@ export default function LessonPanel({ course, day, onDayChange, progress, onTogg
             <span className="lesson-eyebrow"><span /> 实作课堂 <ChevronRight size={13} /> 第 {String(course.number).padStart(2, '0')} 章</span>
             <button className="lesson-icon-button" ref={closeRef} onClick={onClose} aria-label="关闭实作课堂"><X size={20} /></button>
           </div>
-          <div className="lesson-title-row"><h2 id="lesson-title">{course.title}</h2><span className="lesson-stage">{course.stage}</span></div>
+          <div className="lesson-title-row"><h2 id="lesson-title">{course.title}</h2><span className="lesson-stage">{course.stage}</span>{checkpoint && <span className="lesson-checkpoint-badge">阶段验收</span>}</div>
           <p className="lesson-subtitle">{course.subtitle}</p>
           <nav className="lesson-days" aria-label="选择学习日">
             {course.days.map((item, index) => {
@@ -132,6 +139,15 @@ export default function LessonPanel({ course, day, onDayChange, progress, onTogg
         <div className="lesson-scroll">
           <div className="lesson-tab-content" id={`lesson-panel-${tab}`} role="tabpanel" aria-labelledby={`lesson-tab-${tab}`} tabIndex={0}>
             {tab === 'practice' && <>
+              {checkpoint && <section className="lesson-checkpoint-preview" aria-label="阶段作品任务">
+                <div className="lesson-checkpoint-preview-heading"><span><Flag size={16} /> 综合项目 · 独立制作</span><span className={`lesson-checkpoint-state ${assessment.passed ? 'is-passed' : ''}`}>{assessmentStatus}</span></div>
+                <h3>把前面学过的知识，变成一款能反复玩的游戏</h3>
+                <p>{checkpoint.brief}</p>
+                {prerequisiteTitles.length > 0 && <p className="lesson-checkpoint-prerequisites"><strong>调用前面学过的能力：</strong>{prerequisiteTitles.join(' · ')}</p>}
+                <p className="lesson-checkpoint-explanation">完成每日任务后，还要交付可运行作品、测试记录和玩法证据。阶段评分独立保存；按实际作品勾选，阅读教程不会自动通过验收。</p>
+                <button className="lesson-inline-link" onClick={() => setTab('review')}>打开阶段验收 <ArrowRight size={16} /></button>
+              </section>}
+              {course.kind === 'ai-art' && <div className="lesson-ai-art-intro"><Sparkles size={19} /><div><strong>从零美术基础开始，用 AI 制作可用的游戏资源</strong><p>先用简单形状验证玩法，再完成风格约束、资源生成、透明处理和双引擎导入。每份资源都要在实际游戏中检查辨识度、动画和性能，并保存来源与使用许可。</p></div></div>}
               <div className="lesson-goal">
                 <div className="lesson-goal-label"><Flag size={16} /> 第 {currentDay + 1} 天 · 今天要完成什么</div>
                 <h3>{lesson.goal}</h3>
@@ -189,6 +205,38 @@ export default function LessonPanel({ course, day, onDayChange, progress, onTogg
             </>}
 
             {tab === 'review' && <>
+              {checkpoint && <section className="lesson-checkpoint-assessment" aria-labelledby="checkpoint-title">
+                <div className="lesson-section-heading lesson-first-heading"><div><span className="lesson-section-kicker">阶段验收 · 按作品证据打分</span><h3 id="checkpoint-title">这一次，交付完整的可玩体验</h3></div><span className={`lesson-checkpoint-state ${assessment.passed ? 'is-passed' : ''}`} role="status">{assessmentStatus}</span></div>
+                <p className="lesson-checkpoint-reference"><strong>玩法参考：</strong>{checkpoint.reference}</p>
+                <p className="lesson-checkpoint-brief">{checkpoint.brief}</p>
+                {prerequisiteTitles.length > 0 && <p className="lesson-checkpoint-prerequisites"><strong>回看先修章节：</strong>{prerequisiteTitles.join(' · ')}</p>}
+                <div className="lesson-checkpoint-requirements"><h4>作品必须做到</h4><ul>{checkpoint.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul></div>
+
+                <div className={`lesson-checkpoint-score ${assessment.passed ? 'is-passed' : ''}`} aria-live="polite">
+                  <div><span>作品自评得分</span><strong>{assessment.score}<small> / {assessment.maxScore}</small></strong></div>
+                  <p>至少 {checkpoint.passScore} 分，并满足全部 {assessment.totalGates} 项必过条件。<br />已满足必过条件 {assessment.passedGates} / {assessment.totalGates} 项。</p>
+                </div>
+                <fieldset className="lesson-checkpoint-checklist"><legend>评分标准（Rubric）</legend><p className="lesson-checkpoint-explanation">先运行两个引擎的作品，按证据逐项检查；只有完整达到该项要求，才勾选获得分数。</p>
+                  {checkpoint.rubric.map(criterion => {
+                    const key = `${course.id}:rubric:${criterion.id}`;
+                    const checked = !!progress.checkpointChecks[key];
+                    return <label key={key} className={`lesson-checkpoint-criterion ${checked ? 'is-checked' : ''}`}>
+                      <input type="checkbox" checked={checked} onChange={() => onCheckpointCheck(key)} />
+                      <span className="lesson-checkpoint-criterion-copy"><strong>{criterion.label}</strong><span>验收证据：{criterion.evidence}</span></span><span className="lesson-checkpoint-points">{criterion.points} 分</span>
+                    </label>;
+                  })}
+                </fieldset>
+                <fieldset className="lesson-checkpoint-checklist lesson-checkpoint-gates"><legend>必过条件（Hard Gates）· 缺一项都需补做</legend>
+                  {checkpoint.hardGates.map((gate, index) => {
+                    const key = `${course.id}:gate:${index}`;
+                    const checked = !!progress.checkpointChecks[key];
+                    return <label key={key} className={`lesson-checkpoint-criterion ${checked ? 'is-checked' : ''}`}><input type="checkbox" checked={checked} onChange={() => onCheckpointCheck(key)} /><span className="lesson-checkpoint-criterion-copy"><strong>{gate}</strong></span><span className="lesson-checkpoint-gate-tag">必过</span></label>;
+                  })}
+                </fieldset>
+                <p className={`lesson-checkpoint-result ${assessment.passed ? 'is-passed' : ''}`} role="status">{assessment.passed ? '自评达标，仍需按证据复核。邀请他人盲测，再根据反馈修改作品。' : assessment.started ? '需要补做：补齐未勾选的评分项与必过条件，再运行作品复测。' : '待验收：先完成可运行作品，再记录证据与自评。'} 这里记录的是你的自评，不会自动检查游戏或替代真实试玩。</p>
+                {checkpoint.stretch.length > 0 && <div className="lesson-checkpoint-stretch"><h4><Sparkles size={15} /> 达标后再挑战</h4><ul>{checkpoint.stretch.map(item => <li key={item}>{item}</li>)}</ul></div>}
+                <p className="lesson-field-help">评分与必过条件自动保存在此浏览器，包含在学习备份中。请在下方作品记录与复盘中保存演示链接、版本号和测试证据。</p>
+              </section>}
               <div className="lesson-section-heading lesson-first-heading"><div><span className="lesson-section-kicker">把“看懂了”变成“做到了”</span><h3>第 {currentDay + 1} 天的验收标准</h3></div><span className="lesson-soft-label">手动验证</span></div>
               <ul className="lesson-acceptance">{lesson.acceptance.map(item => <li key={item}><CheckCircle2 size={18} /><span>{item}</span></li>)}</ul>
               <div className="lesson-deliverables"><h4><ArrowDownToLine size={17} /> 本章最终交付物</h4><ul>{course.deliverables.map(item => <li key={item}>{item}</li>)}</ul></div>

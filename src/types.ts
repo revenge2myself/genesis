@@ -17,7 +17,18 @@ export interface Course {
   description: string;
   stage: Stage;
   theme: 'mint' | 'lavender' | 'peach' | 'blue';
-  art: 'pong' | 'bird' | 'breakout' | 'runner' | 'puzzle' | 'tower' | 'farm' | 'dungeon' | 'survival' | 'ads' | 'steam' | 'switch';
+  art: 'pong' | 'bird' | 'breakout' | 'runner' | 'puzzle' | 'tower' | 'farm' | 'dungeon' | 'survival' | 'ads' | 'steam' | 'switch' | 'aiart' | 'arcadecheck' | 'strategycheck' | 'survivalcheck' | 'releasecheck';
+  kind?: 'project' | 'ai-art' | 'checkpoint';
+  prerequisites?: string[];
+  checkpoint?: {
+    reference: string;
+    brief: string;
+    requirements: string[];
+    rubric: { id: string; label: string; points: number; evidence: string }[];
+    passScore: number;
+    hardGates: string[];
+    stretch: string[];
+  };
   tags: string[];
   concepts: { zh: string; en: string; same: string; cocos: string; unity: string }[];
   days: LessonDay[];
@@ -32,6 +43,7 @@ export interface Progress {
   notes: Record<string, string>;
   artifacts: Record<string, string>;
   quizAnswers: Record<string, number>;
+  checkpointChecks: Record<string, boolean>;
   focusSeconds: number;
   focusByDate: Record<string, number>;
   lastCourse: string;
